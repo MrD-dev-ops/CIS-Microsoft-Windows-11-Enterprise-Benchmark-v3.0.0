@@ -34,17 +34,32 @@ net accounts /lockoutwindow:15
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name NoConnectedUser -Value 3
 
 #CIS26009
-Disable-LocalUser -Name "guest"
-Disable-LocalUser -Name "xguest"
+Disable-LocalUser -Name "guest" -ErrorAction SilentlyContinue
+Disable-LocalUser -Name "xguest" -ErrorAction SilentlyContinue
+Disable-LocalUser -Name "TemporaryUser" -ErrorAction SilentlyContinue
 
 #CIS26010
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa -Name LimitBlankPasswordUse -Value 1
 
 #CIS26011
-Rename-LocalUser -Name "Administrator" -NewName "xAdministrator"
+$adminAccount = Get-LocalUser -Name "Administrator" -ErrorAction SilentlyContinue
+if ($adminAccount -and -not (Get-LocalUser -Name "SystemOperator" -ErrorAction SilentlyContinue)) {
+    Rename-LocalUser -Name "Administrator" -NewName "SystemOperator"
+}
+$legacyAdminAccount = Get-LocalUser -Name "xAdministrator" -ErrorAction SilentlyContinue
+if ($legacyAdminAccount -and -not (Get-LocalUser -Name "SystemOperator" -ErrorAction SilentlyContinue)) {
+    Rename-LocalUser -Name "xAdministrator" -NewName "SystemOperator"
+}
 
 #CIS26012
-Rename-LocalUser -Name "Guest" -NewName "xGuest"
+$guestAccount = Get-LocalUser -Name "Guest" -ErrorAction SilentlyContinue
+if ($guestAccount -and -not (Get-LocalUser -Name "TemporaryUser" -ErrorAction SilentlyContinue)) {
+    Rename-LocalUser -Name "Guest" -NewName "TemporaryUser"
+}
+$legacyGuestAccount = Get-LocalUser -Name "xGuest" -ErrorAction SilentlyContinue
+if ($legacyGuestAccount -and -not (Get-LocalUser -Name "TemporaryUser" -ErrorAction SilentlyContinue)) {
+    Rename-LocalUser -Name "xGuest" -NewName "TemporaryUser"
+}
 
 #CIS26013
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa -Name SCENoApplyLegacyAuditPolicy -Value 1
@@ -52,8 +67,12 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Con
 #CIS26014
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa -Name  CrashOnAuditFail -Value 0
 
-#CIS26015
-Set-ItemProperty -Path Registry::'HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Print\Providers\LanMan Print Services\Servers' -Name AddPrinterDrivers -Value 1
+#CIS26015 Prevent users from installing printer drivers
+# Ensure the required registry path exists
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Print\Providers\LanMan Print Services\Servers" -Force -ErrorAction SilentlyContinue
+
+# Set the AddPrinterDrivers DWORD value to 1
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Print\Providers\LanMan Print Services\Servers" -Name "AddPrinterDrivers" -Value 1 -Type DWord
 
 #CIS26016
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Netlogon\Parameters -Name RequireSignOrSeal -Value 1
@@ -68,8 +87,7 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Ser
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Netlogon\Parameters -Name DisablePasswordChange -Value 0
 
 #CIS26020
-net.exe accounts /minpwage:7
-net.exe accounts /maxpwage:30
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Netlogon\Parameters -Name MaximumPasswordAge -Value 30
 
 #CIS26021
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\Netlogon\Parameters -Name RequireStrongKey -Value 1
@@ -77,27 +95,27 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Ser
 #CIS26022
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name DisableCAD -Value 0
 
-#CIS26023
+#CIS26023 Don't display last account name
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name DontDisplayLastUserName -Value 1
 
 #CIS26024
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name MaxDevicePasswordFailedAttempts -Value 29
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name MaxDevicePasswordFailedAttempts -Value 10
 
 #CIS26025
-#Set Desktop timeout until lock screen engaged
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name InactivityTimeoutSecs -Value 900
+#Set Desktop timeout until lock screen engaged.  Auto screen lock 15 minutes
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System -Name InactivityTimeoutSecs -Value 900
 
 #CIS26026
-Set-ItemProperty -Path Registry::HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system -Name legalnoticetext -Value "" -Type String
+Set-ItemProperty -Path Registry::HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system -Name legalnoticetext -Value "This computer system is the property of the organization and is intended for authorized users only. All activities may be monitored, recorded, and reviewed. Unauthorized access, use, or disclosure is prohibited and may result in disciplinary action and/or criminal prosecution." -Type String
 
 #CIS26027
-Set-ItemProperty -Path Registry::HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system -Name legalnoticecaption -Value "" -Type String
+Set-ItemProperty -Path Registry::HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system -Name legalnoticecaption -Value "Security Warning" -Type String
 
 #CIS26028
 Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name CachedLogonsCount -Value 4
 
 #CIS26029
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name PasswordExpiryWarning -Value 10
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name PasswordExpiryWarning -Value 14
 
 #CIS26030
 Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" -Name ScRemoveOption -Value 1
@@ -112,7 +130,7 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Ser
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanmanWorkstation\Parameters -Name EnablePlainTextPassword -Value 0
 
 #CIS26034
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanManServer\Parameters -Name AutoDisconnect -Value 5
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanManServer\Parameters -Name AutoDisconnect -Value 2
 
 #CIS26035
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\LanManServer\Parameters -Name RequireSecuritySignature -Value 1
@@ -196,9 +214,13 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Con
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa\MSV1_0 -Name AuditReceivingNTLMTraffic -Value 2
 
 #CIS26061
-#Breaks NTLMv2 Login to remote file shares
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa\MSV1_0 -Name RestrictSendingNTLMTraffic -Value 2
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa\MSV1_0 -Name RestrictSendingNTLMTraffic -Value 0
+#BREAKS NTLMv2 LOGIN TO REMOTE FILE SHARES
+#1 = Deny ALL
+Set-ItemProperty -Path "Registry::HKLM\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" -Name "RestrictSendingNTLMTraffic" -Value 1 -Type DWord
+#2 = Deny NTLM
+#Set-ItemProperty -Path "Registry::HKLM\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0" -Name "RestrictSendingNTLMTraffic" -Value 2 -Type DWord
+#0 = ALLOY NTLM
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Lsa\MSV1_0 -Name RestrictSendingNTLMTraffic -Value 0
 
 #CIS26062
 Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Kernel" -Name ObCaseInsensitive -Value 1
@@ -361,16 +383,16 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Ser
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WpnService -Name Start -Value 4
 
 #CIS26109
-#Enable Application Installations from Microsoft Store
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PushToInstall -Name Start -Value 2
 #Disable Application Installations from Microsoft Store
-##Breaks Microsoft Store from installing/updating apps
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PushToInstall -Name Start -Value 4
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PushToInstall -Name Start -Value 4
+#Enable Application Installations from Microsoft Store
+##BREAKS MICROSOFT STORE FROM INSTALLING/UPDATING APPS
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PushToInstall -Name Start -Value 2
 
 #CIS26110
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WinRM -Name Start -Value 4
 
-#CUS26111
+#CIS26111
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\W3SVC
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\W3SVC -Name Start -Value 4
 
@@ -445,9 +467,9 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\
 
 #CIS26131
 #Enable changes to Inbound Public Firewall
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile -Name DefaultInboundAction -Value 0
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile -Name DefaultInboundAction -Value 0
 #Disable changes to Inbound Public Firewall
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile -Name DefaultInboundAction -Value 1
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile -Name DefaultInboundAction -Value 1
 
 #CIS26132
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile -Name DisableNotifications -Value 1
@@ -472,166 +494,166 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsFirewall\PublicProfile\Logging -Name LogSuccessfulConnections -Value 1
 
 #CIS26139
-#Disable Auditing
-auditpol /set /subcategory:"Credential Validation" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Credential Validation" /success:enable /failure:enable
+auditpol /set /subcategory:"Credential Validation" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Credential Validation" /success:disable /failure:disable
 
 #CIS26140
-#Disable Auditing
-auditpol /set /subcategory:"Application Group Management" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Application Group Management" /success:enable /failure:enable
+auditpol /set /subcategory:"Application Group Management" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Application Group Management" /success:disable /failure:disable
 
 #CIS26141
-#Disable Auditing
-auditpol /set /subcategory:"Security Group Management" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Security Group Management" /success:enable /failure:disable
+auditpol /set /subcategory:"Security Group Management" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Security Group Management" /success:disable /failure:disable
 
 #CIS26142
-#Disable Auditing
-auditpol /set /subcategory:"User Account Management" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"User Account Management" /success:enable /failure:enable
+auditpol /set /subcategory:"User Account Management" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"User Account Management" /success:disable /failure:disable
 
 #CIS26143
-#Disable Auditing
-auditpol /set /subcategory:"Plug and Play Events" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Plug and Play Events" /success:enable /failure:disable
+auditpol /set /subcategory:"Plug and Play Events" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Plug and Play Events" /success:disable /failure:disable
 
 #CIS26144
-#Disable Auditing
-auditpol /set /subcategory:"Process Creation" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Process Creation" /success:enable /failure:disable
+auditpol /set /subcategory:"Process Creation" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Process Creation" /success:disable /failure:disable
 
 #CIS26145
-#Disable Auditing
-auditpol /set /subcategory:"Account Lockout" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Account Lockout" /success:disable /failure:enable
+auditpol /set /subcategory:"Account Lockout" /success:disable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Account Lockout" /success:disable /failure:disable
 
 #CIS26146
-#Disable Auditing
-auditpol /set /subcategory:"Group Membership" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Group Membership" /success:enable /failure:disable
+auditpol /set /subcategory:"Group Membership" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Group Membership" /success:disable /failure:disable
 
 #CIS26147
-#Disable Auditing
-auditpol /set /subcategory:"Logoff" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Logoff" /success:enable /failure:disable
+auditpol /set /subcategory:"Logoff" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Logoff" /success:disable /failure:disable
 
 #CIS26148
-#Disable Auditing
-auditpol /set /subcategory:"Logon" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+auditpol /set /subcategory:"Logon" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Logon" /success:disable /failure:disable
 
 #CIS26149
-#Disable Auditing
-auditpol /set /subcategory:"Other Logon/Logoff Events" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Other Logon/Logoff Events" /success:enable /failure:enable
+auditpol /set /subcategory:"Other Logon/Logoff Events" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Other Logon/Logoff Events" /success:disable /failure:disable
 
 #CIS26150
-#Disable Auditing
-auditpol /set /subcategory:"Special Logon" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Special Logon" /success:enable /failure:disable
+auditpol /set /subcategory:"Special Logon" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Special Logon" /success:disable /failure:disable
 
 #CIS26151
-#Disable Auditing
-auditpol /set /subcategory:"Detailed File Share" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Detailed File Share" /success:disable /failure:enable
+auditpol /set /subcategory:"Detailed File Share" /success:disable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Detailed File Share" /success:disable /failure:disable
 
 #CIS26152
-#Disable Auditing
-auditpol /set /subcategory:"File Share" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"File Share" /success:enable /failure:enable
+auditpol /set /subcategory:"File Share" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"File Share" /success:disable /failure:disable
 
 #CIS26153
-#Disable Auditing
-auditpol /set /subcategory:"Other Object Access Events" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Other Object Access Events" /success:enable /failure:enable
+auditpol /set /subcategory:"Other Object Access Events" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Other Object Access Events" /success:disable /failure:disable
 
 #CIS26154
-#Disable Auditing
-auditpol /set /subcategory:"Removable Storage" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Removable Storage" /success:enable /failure:enable
+auditpol /set /subcategory:"Removable Storage" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Removable Storage" /success:disable /failure:disable
 
 #CIS26155
-#Disable Auditing
-auditpol /set /subcategory:"Audit Policy Change" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Audit Policy Change" /success:enable /failure:disable
+auditpol /set /subcategory:"Audit Policy Change" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Audit Policy Change" /success:disable /failure:disable
 
 #CIS26156
-#Disable Auditing
-auditpol /set /subcategory:"Authentication Policy Change"  /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Authentication Policy Change"  /success:enable /failure:disable
+auditpol /set /subcategory:"Authentication Policy Change"  /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Authentication Policy Change"  /success:disable /failure:disable
 
 #CIS26157
-#Disable Auditing
-auditpol /set /subcategory:"Authorization Policy Change" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Authorization Policy Change" /success:enable /failure:disable
+auditpol /set /subcategory:"Authorization Policy Change" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Authorization Policy Change" /success:disable /failure:disable
 
 #CIS26158
-#Disable Auditing
-auditpol /set /subcategory:"MPSSVC Rule-Level Policy Change" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"MPSSVC Rule-Level Policy Change" /success:enable /failure:enable
+auditpol /set /subcategory:"MPSSVC Rule-Level Policy Change" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"MPSSVC Rule-Level Policy Change" /success:disable /failure:disable
 
 #CIS26159
-#Disable Auditing
-auditpol /set /subcategory:"Other Policy Change Events"  /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Other Policy Change Events"  /success:disable /failure:enable
+auditpol /set /subcategory:"Other Policy Change Events"  /success:disable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Other Policy Change Events"  /success:disable /failure:disable
 
 #CIS26160
-#Disable Auditing
-auditpol /set /subcategory:"Sensitive Privilege Use" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Sensitive Privilege Use" /success:enable /failure:enable
+auditpol /set /subcategory:"Sensitive Privilege Use" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Sensitive Privilege Use" /success:disable /failure:disable
 
 #CIS26161
-#Disable Auditing
-auditpol /set /subcategory:"IPsec Driver" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"IPsec Driver" /success:enable /failure:enable
+auditpol /set /subcategory:"IPsec Driver" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"IPsec Driver" /success:disable /failure:disable
 
 #CIS26162
-#Disable Auditing
-auditpol /set /subcategory:"Other System Events" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Other System Events" /success:enable /failure:enable
+auditpol /set /subcategory:"Other System Events" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"Other System Events" /success:disable /failure:disable
 
 #CIS26163
-#Disable Auditing
-auditpol /set /subcategory:"Security State Change" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Security State Change" /success:enable /failure:disable
+auditpol /set /subcategory:"Security State Change" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Security State Change" /success:disable /failure:disable
 
 #CIS26164
-#Disable Auditing
-auditpol /set /subcategory:"Security System Extension" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"Security System Extension" /success:enable /failure:disable
+auditpol /set /subcategory:"Security System Extension" /success:enable /failure:disable
+#Disable Auditing
+#auditpol /set /subcategory:"Security System Extension" /success:disable /failure:disable
 
 #CIS26165
-#Disable Auditing
-auditpol /set /subcategory:"System Integrity" /success:disable /failure:disable
 #Enable Auditing
-#auditpol /set /subcategory:"System Integrity" /success:enable /failure:enable
+auditpol /set /subcategory:"System Integrity" /success:enable /failure:enable
+#Disable Auditing
+#auditpol /set /subcategory:"System Integrity" /success:disable /failure:disable
 
 #CIS26166
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Personalization
@@ -790,24 +812,25 @@ Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft
 Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name RedirectionguardPolicy -Value 1
 
 #CIS26211
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name RpcUseNamedPipeProtocol -Value 1
+New-Item -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers\RPC"
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers\RPC" -Name RpcUseNamedPipeProtocol -Value 0
 
 #CIS26212
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name RpcAuthentication -Value 0
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers\RPC" -Name RpcAuthentication -Value 0
 
 #CIS26213
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name RpcProtocols -Value 7
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers\RPC" -Name RpcProtocols -Value 5
 
 #CIS26214
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name ForceKerberosForRpc -Value 1
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers\RPC" -Name ForceKerberosForRpc -Value 1
 
 #CIS26215
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name RpcTcpPort -Value 0
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers\RPC" -Name RpcTcpPort -Value 0
 
 #CIS26216
 New-Item -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Printers"
 New-Item -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint"
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint" -Name RestrictDriverInstallationToAdministrators -Value 0
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Printers\PointAndPrint" -Name RestrictDriverInstallationToAdministrators -Value 1
 
 #CIS26217
 Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows NT\Printers" -Name CopyFilesPolicy -Value 1
@@ -858,29 +881,49 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceGuard -Name ConfigureKernelShadowStacksLaunch -Value 1
 
 #CIS26231
-New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall
-New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions
-New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs -Name 1 -Value ""
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall" -Force -ErrorAction SilentlyContinue
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Name "DenyDeviceIDs" -Value 1 -Type DWord
 
 #CIS26232
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs -Name 1 -Value "PCI\CC_0C0A"
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall" -Force -ErrorAction SilentlyContinue
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Name "DenyDeviceIDs" -Value 1 -Type DWord
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs" -Name "1" -Value "PCI\CC_0C0A"
 
 #CIS26233
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDsRetroactive -Name 1 -Value ""
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall" -Force -ErrorAction SilentlyContinue
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Name "DenyDeviceIDsRetroactive" -Value 1 -Type DWord
 
 #CIS26234
-New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall" -Force -ErrorAction SilentlyContinue
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Name "DenyDeviceClasses" -Value 1 -Type DWord
+
+
 
 #CIS26235
-New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses" -Name "1" -Value "{d48179be-ec20-11d1-b6b8-00c04fa372a7}"
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses" -Name "2" -Value "{7ebefbc0-3200-11d2-b4c2-00a0C9697d07}"
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses" -Name "3" -Value "{c06ff265-ae09-48f0-812c-16753d7cba83}"
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceClasses" -Name "4" -Value "{6bdd1fc1-810f-11d0-bec7-08002be2092f}"
+
+
 
 #CIS26236
-New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions -Name DenyDeviceClassesRetroactive
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions" -Name "DenyDeviceClassesRetroactive" -Value 1 -Type DWord
 
 #CIS26237
-New-Item -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Device Metadata"
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name PreventDeviceMetadataFromNetwork -Value 1
+New-Item -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Force -ErrorAction SilentlyContinue
+Set-ItemProperty -Path "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -Value 1 -Type DWord
+
+
+
+
+
 
 #CIS26238
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Policies\EarlyLaunch
@@ -908,10 +951,10 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\
 Remove-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System -Name DisableBkGndGroupPolicy
 
 #CIS26245
-#Enable Microsoft Store
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer -Name NoUseStoreOpenWith -Value 0
 #Disable Microsoft Store
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer -Name NoUseStoreOpenWith -Value 1
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer -Name NoUseStoreOpenWith -Value 1
+#Enable Microsoft Store
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Explorer -Name NoUseStoreOpenWith -Value 0
 
 #CIS26246
 Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Printers" -Name DisableWebPnPDownload -Value 1
@@ -1101,10 +1144,10 @@ New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\AppModel\StateManager -Name AllowSharedLocalAppData -Value 0
 
 #CIS26297
-#Enable users to install apps from Microsoft Store
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Appx -Name BlockNonAdminUserInstall -Value 0
 #Disable users to install apps from Microsoft Store
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Appx -Name BlockNonAdminUserInstall -Value 1
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Appx -Name BlockNonAdminUserInstall -Value 1
+#Enable users to install apps from Microsoft Store
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Appx -Name BlockNonAdminUserInstall -Value 0
 
 #CIS26298
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy
@@ -1583,34 +1626,34 @@ Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft
 
 #CIS26439
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore
-#Enable Microsoft Store Apps
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableStoreApps -Value 0
 #Disable Microsoft Store Apps
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableStoreApps -Value 1
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableStoreApps -Value 1
+#Enable Microsoft Store Apps
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableStoreApps -Value 0
 
 #CIS26440
+#Only display the private store within the Microsoft Store
+Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore" -Name RequirePrivateStoreOnly -Value 1
 #Enable Microsoft Retail Store
-Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore" -Name RequirePrivateStoreOnly -Value 0
-#Enable Microsoft Retail Store
-#Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore" -Name RequirePrivateStoreOnly -Value 1
+#Set-ItemProperty -Path Registry::"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore" -Name RequirePrivateStoreOnly -Value 0
 
 #CIS26441
-#Enable automatic Microsoft Store app updates
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name AutoDownload -Value 2
 #Disable automatic Microsoft Store app updates
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name AutoDownload -Value 4
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name AutoDownload -Value 4
+#Enable automatic Microsoft Store app updates
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name AutoDownload -Value 2
 
 #CIS26442
-#Enable Microsoft Store OS upgrade prompts
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableOSUpgrade -Value 0
 #Disable Microsoft Store OS upgrade prompts
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableOSUpgrade -Value 1
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableOSUpgrade -Value 1
+#Enable Microsoft Store OS upgrade prompts
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name DisableOSUpgrade -Value 0
 
 #CIS26443
-#Enable Microsoft Store app
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name RemoveWindowsStore -Value 0
 #Disable Microsoft Store app
-#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name RemoveWindowsStore -Value 1
+Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name RemoveWindowsStore -Value 1
+#Enable Microsoft Store app
+#Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsStore -Name RemoveWindowsStore -Value 0
 
 #CIS26444
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Dsh
@@ -1653,8 +1696,6 @@ Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\
 
 #CIS26455
 New-Item -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Installer
-Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Installer -Name EnableUserControl -Value 0
-
 Set-ItemProperty -Path Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Installer -Name EnableUserControl -Value 0
 
 #CIS26456
