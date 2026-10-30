@@ -3430,3 +3430,26 @@ Batches completed so far:
 
 - Cross-reference complete — all Checks 26000–26481 documented.
 - Review the `MISSING` and `VALUE_CHANGED` findings for remediation script updates.
+
+## Missing and Changed Settings
+
+### Missing Settings (Change detected: MISSING)
+
+- Check 26008 — Accounts: Block Microsoft accounts: v5.0.0 removed the recommendation (Accounts 2.3.1); remediation retains the check; review/remove for v5.0.0 alignment.
+- Check 26016 — Domain member: Digitally encrypt or sign secure channel data (always): no comparable v5.0.0 required value (section 2.3.6 Domain member intentionally blank).
+- Check 26017 — Domain member: Digitally encrypt secure channel data (when possible): no comparable v5.0.0 required value (section 2.3.6 Domain member intentionally blank).
+- Check 26018 — Domain member: Digitally sign secure channel data (when possible): no comparable v5.0.0 required value (section 2.3.6 Domain member intentionally blank).
+- Check 26019 — Domain member: Disable machine account password changes: no comparable v5.0.0 required value (section 2.3.6 Domain member intentionally blank).
+- Check 26020 — Domain member: Maximum machine account password age: no comparable v5.0.0 required value (section 2.3.6 Domain member intentionally blank).
+- Check 26021 — Domain member: Require strong (Windows 2000 or later) session key: no comparable v5.0.0 required value (section 2.3.6 Domain member intentionally blank).
+- Check 26024 — Interactive logon: Machine account lockout threshold: v5.0.0 removed the recommendation (Interactive logon 2.3.7, REMOVE, Ticket #26461).
+- Check 26028 — Interactive logon: Number of previous logons to cache: no matching v5.0.0 recommendation found.
+- Check 26032 — Microsoft network client: Digitally sign communications (if server agrees): v5.0.0 removed it (Ticket #25347).
+- Check 26036 — Microsoft network server: Digitally sign communications (if client agrees): v5.0.0 removed it (Ticket #25550).
+
+### Changed Settings (Change detected: VALUE_CHANGED)
+
+- Check 26044 — Network access: Remotely accessible registry paths: remediation sets `AllowedExactPaths Machine` as a single-line string; v5.0.0 requires REG_MULTI_SZ line-feed-delimited list; remediation change required.
+- Check 26045 — Network access: Remotely accessible registry paths and sub-paths: remediation sets `AllowedPaths Machine` not matching required REG_MULTI_SZ list; remediation change required.
+- Check 26053 — Network security: Configure encryption types allowed for Kerberos: remediation sets `SupportedEncryptionTypes=2147483644`; v5.0.0 requires `2147483640`; remediation change required.
+- Check 26305 — Allow access to BitLocker-protected fixed data drives from earlier versions of Windows: remediation sets `FDVRecovery=1`; v5.0.0 requires Disabled via `FDVDiscoveryVolumeType <none>`; remediation change required.
